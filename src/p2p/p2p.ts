@@ -1,9 +1,11 @@
 import Peer, { type DataConnection } from "peerjs";
 
+export { DataConnection }
+
 export async function startServer<MessageType>(config?: {
-    onClientConnect?: (client: DataConnection) => void,
-    onClientDisconnect?: (client: DataConnection) => void,
-    onReceiveMessage?: (client: DataConnection, message: MessageType) => void,
+    onClientConnect?: (clientConnection: DataConnection) => void,
+    onClientDisconnect?: (clientConnection: DataConnection) => void,
+    onReceiveMessage?: (clientConnection: DataConnection, message: MessageType) => void,
 }): Promise<Server<MessageType>> {
     let server = new Server()
 
@@ -19,9 +21,9 @@ export async function startServer<MessageType>(config?: {
 export class Server<MessageType> {
     id: string
     private peer: Peer
-    private clients: Map<string, DataConnection>
+    private clientsConnections: Map<string, DataConnection>
     constructor() {
-        this.clients = new Map()
+        this.clientsConnections = new Map()
     }
     /**
      * 
@@ -34,8 +36,7 @@ export class Server<MessageType> {
                 console.info(`${server_id}: Server started`)
                 this.id = server_id
                 resolve(server_id)
-                this.peer.on('connection', (client) => this.clientConnected(client))
-                this.peer.on('disconnected', (client_id) => this.clientDisconnected(client_id))
+                this.peer.on('connection', (clientConnection) => this.clientConnected(clientConnection))
             })
             this.peer.on('error', (error) => {
                 console.error(`Couldn't start server: ${error}`)
@@ -43,37 +44,49 @@ export class Server<MessageType> {
             })
         })
     }
-    private clientConnected(client: DataConnection) {
-        console.info(`${this.peer.id}: Client ${client.peer} connected`)
-        this.clients.set(client.peer, client)
-        this.onClientConnect?.(client)
-        client.on('data', (message: MessageType) => {
-            console.info(`${this.peer.id}: Client ${client.peer} sent message [${message}]`)
-            this.onReceiveMessage?.(client, message)
+    private clientConnected(clientConnection: DataConnection) {
+        console.info(`${this.peer.id}: Client ${clientConnection.peer} connected`)
+        this.clientsConnections.set(clientConnection.peer, clientConnection)
+        this.onClientConnect?.(clientConnection)
+        clientConnection.on('data', (message: MessageType) => {
+            console.info(`${this.peer.id}: clientConnection ${clientConnection.peer} sent message [${message}]`)
+            this.onReceiveMessage?.(clientConnection, message)
+        })
+        clientConnection.on('close', () => this.clientDisconnected(clientConnection))
+        clientConnection.on('iceStateChanged', (state: RTCIceConnectionState) => {
+            switch (state) {
+                case "disconnected":
+                    this.clientDisconnected(clientConnection)
+                    break;
+
+                default:
+                    break;
+            }
         })
     }
-    private clientDisconnected(client_id: string) {
-        let client = this.clients.get(client_id)
-        console.info(`${this.peer.id}: Client ${client.peer} disconnected`)
-        this.onClientDisconnect?.(client)
-        this.clients.delete(client_id)
+    private clientDisconnected(clientConnection: DataConnection) {
+        if (!this.clientsConnections.has(clientConnection.peer))
+            return
+        this.clientsConnections.delete(clientConnection.peer)
+        console.info(`${this.peer.id}: Client ${clientConnection.peer} disconnected`)
+        this.onClientDisconnect?.(clientConnection)
     }
     // Events
-    onClientConnect: (client: DataConnection) => void
-    onClientDisconnect: (client: DataConnection) => void
-    onReceiveMessage: (client: DataConnection, message: MessageType) => void
+    onClientConnect: (clientConnection: DataConnection) => void
+    onClientDisconnect: (clientConnection: DataConnection) => void
+    onReceiveMessage: (clientConnection: DataConnection, message: MessageType) => void
     // Actions
     sendMessageToAllClients(message: MessageType) {
-        this.clients.forEach(client => {
-            client.send(message)
+        this.clientsConnections.forEach(clientConnection => {
+            clientConnection.send(message)
         });
     }
     sendMessageToClient(message: MessageType, client_id: string) {
-        let client = this.clients.get(client_id)
-        client.send(message)
+        let clientConnection = this.clientsConnections.get(client_id)
+        clientConnection.send(message)
     }
     getClients(): Map<string, DataConnection> {
-        return this.clients
+        return this.clientsConnections
     }
 }
 
@@ -91,18 +104,18 @@ export async function startClient<MessageType>(server_id: string, config?: {
 
 export class Client<MessageType> {
     private peer: Peer
-    private server: DataConnection
+    private serverConnection: DataConnection
     async connect(server_id: string): Promise<void> {
         return new Promise((resolve, reject) => {
             this.peer = new Peer()
             this.peer.on('open', () => {
-                this.server = this.peer.connect(server_id)
-                this.server.on('open', () => {
+                this.serverConnection = this.peer.connect(server_id)
+                this.serverConnection.on('open', () => {
                     console.info(`CLIENT: Conection with ${server_id} established`)
                     resolve()
-                    this.server.on('data', (message: MessageType) => this.onReceiveMessage?.(message))
+                    this.serverConnection.on('data', (message: MessageType) => this.onReceiveMessage?.(message))
                 })
-                this.server.on('error', (error) => {
+                this.serverConnection.on('error', (error) => {
                     console.error(`CLIENT: Couldn't connect to server: ${error}`)
                     reject(error)
                 })
@@ -113,8 +126,14 @@ export class Client<MessageType> {
             })
         })
     }
+    // Events
     onReceiveMessage: (message: MessageType) => void
+    // Actions
     sendMessage(message: MessageType) {
-        this.server.send(message)
+        this.serverConnection.send(message)
+    }
+    disconnect() {
+        this.serverConnection.close();
+        this.peer.disconnect();
     }
 }

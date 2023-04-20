@@ -1,6 +1,11 @@
 <script lang="ts">
-    import type { DataConnection } from "peerjs";
-    import { Client, Server, startClient, startServer } from "./p2p/p2p";
+    import {
+        Client,
+        Server,
+        startClient,
+        startServer,
+        type DataConnection,
+    } from "./p2p/p2p";
 
     type MessageType = string;
 
@@ -46,6 +51,10 @@
         client.sendMessage(message);
         message = "";
     }
+
+    function desconectarCliente() {
+        client.disconnect();
+    }
 </script>
 
 {#if server !== undefined || client !== undefined}
@@ -72,6 +81,7 @@
     >
         <input bind:value={message} placeholder="Enviar mensaje" />
     </form>
+    <button on:click={desconectarCliente}>Desconectar</button>
 {/if}
 
 {#each message_history as msg}
