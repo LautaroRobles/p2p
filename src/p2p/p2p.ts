@@ -33,7 +33,7 @@ export class Server<MessageType> {
         return new Promise((resolve, reject) => {
             this.peer = new Peer()
             this.peer.on('open', (server_id) => {
-                console.info(`${server_id}: Server started`)
+                console.info(`SERVER: Server started`)
                 this.id = server_id
                 resolve(server_id)
                 this.peer.on('connection', (clientConnection) => this.clientConnected(clientConnection))
@@ -45,11 +45,11 @@ export class Server<MessageType> {
         })
     }
     private clientConnected(clientConnection: DataConnection) {
-        console.info(`${this.peer.id}: Client ${clientConnection.peer} connected`)
+        console.info(`SERVER: Client ${clientConnection.peer} connected`)
         this.clientsConnections.set(clientConnection.peer, clientConnection)
         this.onClientConnect?.(clientConnection)
         clientConnection.on('data', (message: MessageType) => {
-            console.info(`${this.peer.id}: clientConnection ${clientConnection.peer} sent message [${message}]`)
+            console.info(`SERVER: Client ${clientConnection.peer} sent message "${message}"`)
             this.onReceiveMessage?.(clientConnection, message)
         })
         clientConnection.on('close', () => this.clientDisconnected(clientConnection))
@@ -58,7 +58,6 @@ export class Server<MessageType> {
                 case "disconnected":
                     this.clientDisconnected(clientConnection)
                     break;
-
                 default:
                     break;
             }
@@ -68,7 +67,7 @@ export class Server<MessageType> {
         if (!this.clientsConnections.has(clientConnection.peer))
             return
         this.clientsConnections.delete(clientConnection.peer)
-        console.info(`${this.peer.id}: Client ${clientConnection.peer} disconnected`)
+        console.info(`SERVER: Client ${clientConnection.peer} disconnected`)
         this.onClientDisconnect?.(clientConnection)
     }
     // Events
@@ -111,7 +110,7 @@ export class Client<MessageType> {
             this.peer.on('open', () => {
                 this.serverConnection = this.peer.connect(server_id)
                 this.serverConnection.on('open', () => {
-                    console.info(`CLIENT: Conection with ${server_id} established`)
+                    console.info(`CLIENT: Conection with server ${server_id} established`)
                     resolve()
                     this.serverConnection.on('data', (message: MessageType) => this.onReceiveMessage?.(message))
                 })
@@ -134,6 +133,5 @@ export class Client<MessageType> {
     }
     disconnect() {
         this.serverConnection.close();
-        this.peer.disconnect();
     }
 }

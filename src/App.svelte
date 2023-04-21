@@ -15,18 +15,18 @@
 
     async function crearServer() {
         server = await startServer<MessageType>({
-            onClientConnect: (client: DataConnection) => {
-                let cantidad_clientes = server.getClients().size;
-                server.sendMessageToAllClients(
-                    `${client.peer} se ha unido, hay ${cantidad_clientes} conectados`
-                );
-            },
-            onClientDisconnect: (client: DataConnection) => {
-                let cantidad_clientes = server.getClients().size;
-                server.sendMessageToAllClients(
-                    `${client.peer} se ha desconectado, hay ${cantidad_clientes} conectados`
-                );
-            },
+            // onClientConnect: (client: DataConnection) => {
+            //     let cantidad_clientes = server.getClients().size;
+            //     server.sendMessageToAllClients(
+            //         `${client.peer} se ha unido, hay ${cantidad_clientes} conectados`
+            //     );
+            // },
+            // onClientDisconnect: (client: DataConnection) => {
+            //     let cantidad_clientes = server.getClients().size;
+            //     server.sendMessageToAllClients(
+            //         `${client.peer} se ha desconectado, hay ${cantidad_clientes} conectados`
+            //     );
+            // },
             onReceiveMessage: (client: DataConnection, message: string) => {
                 server.sendMessageToAllClients(`${message}`);
             },
@@ -58,7 +58,12 @@
 </script>
 
 {#if server !== undefined || client !== undefined}
-    <p>Connectado al servidor: <b>{server_id}</b></p>
+    <p>
+        Connectado al servidor: <input
+            style="width: 250px"
+            bind:value={server_id}
+        />
+    </p>
 {/if}
 
 {#if server === undefined && client === undefined}
@@ -68,20 +73,19 @@
         </div>
         <p style="padding: 0px 16px">O</p>
         <div>
-            <input bind:value={server_id} />
+            <input style="width: 250px" bind:value={server_id} />
             <button on:click={conectarAServer}>Conectar Servidor</button>
         </div>
     </div>
 {/if}
 
 {#if client !== undefined}
-    <form
-        style="padding-bottom: 16px;"
-        on:submit|preventDefault={enviarMensaje}
-    >
-        <input bind:value={message} placeholder="Enviar mensaje" />
-    </form>
-    <button on:click={desconectarCliente}>Desconectar</button>
+    <div style="display: flex; padding-bottom: 16px;">
+        <form on:submit|preventDefault={enviarMensaje}>
+            <input bind:value={message} placeholder="Enviar mensaje" />
+        </form>
+        <button on:click={desconectarCliente}>Desconectar</button>
+    </div>
 {/if}
 
 {#each message_history as msg}
